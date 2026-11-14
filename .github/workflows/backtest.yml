@@ -21,9 +21,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: Check the model on fake data first
-        run: python -m tests.test_synthetic
-      - name: Run backtest on real NBA data
+      - name: Check the code on test data first
+        run: |
+          python -m tests.test_espn_parse
+          python -m tests.test_synthetic
+      - name: Run backtest on real NBA data (ESPN)
         run: python -m nba.backtest --season "${{ inputs.season }}"
       - name: Save results to the repository
         run: |

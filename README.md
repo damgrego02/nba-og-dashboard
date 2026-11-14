@@ -12,11 +12,13 @@ A scorecard tracks whether the takes add an edge.
 
 | Path | What it does |
 |---|---|
-| `nba/data.py` | Downloads team game logs from NBA.com and caches them in `data/raw/` |
+| `nba/espn.py` | Downloads box scores and DraftKings lines from ESPN and caches them in `data/raw/` |
+| `nba/data.py` | Backup source: NBA.com (blocks cloud servers, but works from a home connection) |
 | `nba/features.py` | Builds one row per game with possessions, rest days, and the Four Factors |
 | `nba/model.py` | The team ratings model |
 | `nba/backtest.py` | Replays a past season day by day and grades the model |
 | `tests/test_synthetic.py` | Checks the whole pipeline on fake seasons where the right answer is known |
+| `tests/test_espn_parse.py` | Checks the ESPN reader against the real response format |
 
 ## Running the backtest
 

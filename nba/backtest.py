@@ -21,7 +21,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .data import load_team_logs, previous_season
+from .data import previous_season
+from .espn import load_lines, load_season
 from .features import build_games
 from .metrics import calibration, score
 from .model import ModelParams, RatingsModel
@@ -31,7 +32,7 @@ REPORTS = ROOT / "reports"
 PROCESSED = ROOT / "data" / "processed"
 
 
-def season_games(season: str, loader=load_team_logs) -> pd.DataFrame:
+def season_games(season: str, loader=load_season) -> pd.DataFrame:
     return build_games(loader(season), season)
 
 
@@ -69,6 +70,48 @@ def add_baselines(preds: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _implied(ml):
+    if ml is None or pd.isna(ml):
+        return np.nan
+    return 100 / (ml + 100) if ml > 0 else -ml / (-ml + 100)
+
+
+def add_vegas(preds: pd.DataFrame, lines: pd.DataFrame) -> pd.DataFrame:
+    """Attach the betting line; convert moneylines to a no-vig home win chance."""
+    df = preds.copy()
+    if lines is None or lines.empty:
+        df["vegas_home_prob"] = np.nan
+        df["home_spread"] = np.nan
+        df["book"] = None
+        return df
+    ln = lines.rename(columns={"GAME_ID": "game_id"})[["game_id", "home_ml", "away_ml", "home_spread", "total", "book"]]
+    ln["game_id"] = ln["game_id"].astype(str)
+    df["game_id"] = df["game_id"].astype(str)
+    df = df.merge(ln, on="game_id", how="left")
+    ph = df["home_ml"].map(_implied)
+    pa = df["away_ml"].map(_implied)
+    df["vegas_home_prob"] = ph / (ph + pa)
+    return df
+
+
+def ats(df: pd.DataFrame) -> dict:
+    """Against the spread: when the model disagrees with Vegas, who's right?
+
+    A bettor needs about 52.4% to break even at standard -110 pricing.
+    """
+    d = df[df["home_spread"].notna()].copy()
+    d["model_edge"] = d["pred_margin"] + d["home_spread"]      # >0: model likes home vs the line
+    d["home_cover"] = d["margin"] + d["home_spread"]
+    d = d[d["home_cover"] != 0]                                  # drop pushes
+    out = {}
+    for label, cut in (("all_games", 0.0), ("edge_2_plus", 2.0), ("edge_4_plus", 4.0)):
+        sub = d[d["model_edge"].abs() >= cut] if cut else d
+        if len(sub):
+            hit = ((sub["model_edge"] > 0) == (sub["home_cover"] > 0)).mean()
+            out[label] = {"games": int(len(sub)), "hit_rate": float(hit)}
+    return out
+
+
 def tune(all_games: pd.DataFrame, season: str) -> tuple[ModelParams, pd.DataFrame]:
     """Pick settings with the best log loss on `season`; also measure sigma there."""
     grid = itertools.product([14, 30, 60, 120], [2.0, 5.0, 15.0], [0.25, 0.5])
@@ -87,7 +130,7 @@ def tune(all_games: pd.DataFrame, season: str) -> tuple[ModelParams, pd.DataFram
     return params, pd.DataFrame(rows)
 
 
-def run(season: str, loader=load_team_logs, write: bool = True) -> dict:
+def run(season: str, loader=load_season, lines_loader=load_lines, write: bool = True) -> dict:
     tune_season = previous_season(season)
     seasons = [previous_season(tune_season), tune_season, season]
     all_games = pd.concat([season_games(s, loader) for s in seasons], ignore_index=True)
@@ -112,6 +155,15 @@ def run(season: str, loader=load_team_logs, write: bool = True) -> dict:
         "baseline_home_team": score(preds, "base_home_prob"),
         "baseline_better_record": score(preds, "record_home_prob"),
     }
+    preds = add_vegas(preds, lines_loader(season))
+    with_line = preds[preds["vegas_home_prob"].notna()]
+    if len(with_line) >= 50:
+        results["vegas_games"] = {
+            "model": score(with_line),
+            "vegas": score(with_line, "vegas_home_prob"),
+            "book": str(with_line["book"].dropna().iloc[0]) if with_line["book"].notna().any() else "",
+        }
+        results["against_the_spread"] = ats(preds)
     pacers = preds[(preds["home"] == "IND") | (preds["away"] == "IND")]
     if len(pacers):
         results["pacers_games"] = score(pacers)
@@ -161,6 +213,32 @@ def report_markdown(r: dict, calib: pd.DataFrame, ratings: pd.DataFrame) -> str:
     ]
     if "pacers_games" in r:
         lines.append(_row("Model, Pacers games only", r["pacers_games"]))
+    if "vegas_games" in r:
+        v = r["vegas_games"]
+        lines += [
+            "",
+            f"## Model vs Vegas ({v['book']} lines, games where a line was available)",
+            "",
+            "| Predictor | Games | Picked winner | Brier | Log loss | Avg miss on margin (pts) |",
+            "|---|---|---|---|---|---|",
+            _row("**Model**", v["model"]),
+            _row("Vegas (moneyline, vig removed)", v["vegas"]),
+        ]
+    if "against_the_spread" in r:
+        names = {"all_games": "Every game", "edge_2_plus": "Model disagrees by 2+ pts",
+                 "edge_4_plus": "Model disagrees by 4+ pts"}
+        lines += [
+            "",
+            "## Against the spread",
+            "",
+            "If you had taken the model's side against the Vegas spread. "
+            "Break-even at standard pricing is about 52.4%.",
+            "",
+            "| Games picked | Games | Model's side covered |",
+            "|---|---|---|",
+        ]
+        for k, a in r["against_the_spread"].items():
+            lines.append(f"| {names[k]} | {a['games']} | {a['hit_rate']:.1%} |")
     lines += [
         "",
         "## Calibration: are the percentages honest?",

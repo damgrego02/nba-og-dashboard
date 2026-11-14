@@ -51,15 +51,32 @@ def fake_season(season: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def fake_lines(season: str) -> pd.DataFrame:
+    """Fake 'Vegas' lines: the true margin plus noise, to exercise the Vegas code."""
+    g = fake_season(season)
+    home = g[g["MATCHUP"].str.contains(" vs. ")]
+    away = g[g["MATCHUP"].str.contains(" @ ")]
+    m = home.merge(away, on="GAME_ID", suffixes=("_h", "_a"))
+    r = np.random.default_rng(1)
+    est = m["PTS_h"] - m["PTS_a"] + r.normal(0, 9, len(m))
+    p = 1 / (1 + np.exp(-est / 7))
+    ml = lambda q: np.where(q >= 0.5, -100 * q / (1 - q), 100 * (1 - q) / q).round()
+    return pd.DataFrame({"GAME_ID": m["GAME_ID"], "home_ml": ml(p * 0.98 + 0.01), "away_ml": ml((1 - p) * 0.98 + 0.01),
+                         "home_spread": (-est * 2).round() / 2, "total": 225.0, "book": "FakeBook"})
+
+
 def main():
     season = "2025-26"
-    r = run(season, loader=fake_season, write=False)
+    r = run(season, loader=fake_season, lines_loader=fake_lines, write=False)
     m, home, rec = r["model"], r["baseline_home_team"], r["baseline_better_record"]
     print("\nmodel   ", {k: round(v, 3) for k, v in m.items()})
     print("home    ", {k: round(v, 3) for k, v in home.items()})
     print("record  ", {k: round(v, 3) for k, v in rec.items()})
     assert m["log_loss"] < home["log_loss"], "model should beat 'always home'"
     assert m["accuracy"] > rec["accuracy"] - 0.01, "model should be at least as good as 'better record'"
+    print("vegas", r.get("vegas_games", {}).get("vegas"))
+    print("ats  ", r.get("against_the_spread"))
+    assert "vegas_games" in r
     assert previous_season("2025-26") == "2024-25"
     print("\nAll checks passed.")
 
