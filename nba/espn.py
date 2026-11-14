@@ -16,6 +16,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from .features import NBA_TEAMS
+
 BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
@@ -55,6 +57,8 @@ def parse_scoreboard(sb: dict, date: str) -> list[dict]:
         if comp.get("neutralSite"):                          # no true home team
             continue
         teams = {c["homeAway"]: nba_abbr(c["team"]["abbreviation"]) for c in comp["competitors"]}
+        if not set(teams.values()) <= NBA_TEAMS:              # All-Star / exhibitions
+            continue
         games.append({"event_id": ev["id"], "date": date, "home": teams["home"], "away": teams["away"]})
     return games
 

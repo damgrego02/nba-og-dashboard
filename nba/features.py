@@ -11,6 +11,13 @@ from __future__ import annotations
 import pandas as pd
 
 
+NBA_TEAMS = {
+    "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
+    "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
+    "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
+}
+
+
 def _possessions(df: pd.DataFrame) -> pd.Series:
     return df["FGA"] - df["OREB"] + df["TOV"] + 0.44 * df["FTA"]
 
@@ -18,6 +25,9 @@ def _possessions(df: pd.DataFrame) -> pd.Series:
 def build_games(logs: pd.DataFrame, season: str) -> pd.DataFrame:
     """One row per game: home/away teams, scores, possessions, rest."""
     df = logs.copy()
+    # drop All-Star and exhibition games: only real NBA teams on both sides
+    real = df.groupby("GAME_ID")["TEAM_ABBREVIATION"].transform(lambda t: t.isin(NBA_TEAMS).all())
+    df = df[real]
     df["GAME_ID"] = df["GAME_ID"].astype(str)
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
     df["is_home"] = df["MATCHUP"].str.contains(" vs. ", regex=False)
