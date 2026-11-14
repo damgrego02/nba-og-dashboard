@@ -1,0 +1,77 @@
+{
+  "season": "2025-26",
+  "tuned_on": "2024-25",
+  "params": {
+    "half_life_days": 30,
+    "ridge": 2.0,
+    "prior_season_weight": 0.25,
+    "sigma": 13.932145676216656
+  },
+  "model": {
+    "games": 1229,
+    "accuracy": 0.6818551668022783,
+    "brier": 0.203951595549227,
+    "log_loss": 0.5941346858401166,
+    "margin_mae": 11.35371847030106,
+    "margin_rmse": 14.505588609051223
+  },
+  "model_after_first_2_weeks": {
+    "games": 1127,
+    "accuracy": 0.6858917480035492,
+    "brier": 0.20269600750665484,
+    "log_loss": 0.5914484879899854,
+    "margin_mae": 11.385048802129548,
+    "margin_rmse": 14.548381209936595
+  },
+  "baseline_home_team": {
+    "games": 1229,
+    "accuracy": 0.5549227013832384,
+    "brier": 0.2490154597233523,
+    "log_loss": 0.6912889387661255
+  },
+  "baseline_better_record": {
+    "games": 1229,
+    "accuracy": 0.6663954434499593,
+    "brier": 0.2225813669650122,
+    "log_loss": 0.6372972166999007
+  },
+  "vegas_games": {
+    "model": {
+      "games": 969,
+      "accuracy": 0.6780185758513931,
+      "brier": 0.20644500536635704,
+      "log_loss": 0.5999886923565356,
+      "margin_mae": 11.606181630546955,
+      "margin_rmse": 14.783083724185722
+    },
+    "vegas": {
+      "games": 969,
+      "accuracy": 0.6934984520123839,
+      "brier": 0.1943510909744094,
+      "log_loss": 0.5698120918405651
+    },
+    "book": "DraftKings"
+  },
+  "against_the_spread": {
+    "all_games": {
+      "games": 974,
+      "hit_rate": 0.4784394250513347
+    },
+    "edge_2_plus": {
+      "games": 566,
+      "hit_rate": 0.46819787985865724
+    },
+    "edge_4_plus": {
+      "games": 265,
+      "hit_rate": 0.46037735849056605
+    }
+  },
+  "pacers_games": {
+    "games": 82,
+    "accuracy": 0.7073170731707317,
+    "brier": 0.19666257707317072,
+    "log_loss": 0.5811673909486288,
+    "margin_mae": 11.022073170731707,
+    "margin_rmse": 13.810386291201095
+  }
+}
