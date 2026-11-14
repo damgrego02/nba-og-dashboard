@@ -1,0 +1,34 @@
+name: Backtest
+
+# Run by hand: Actions tab -> Backtest -> Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "Season to test, e.g. 2025-26"
+        default: "2025-26"
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Check the model on fake data first
+        run: python -m tests.test_synthetic
+      - name: Run backtest on real NBA data
+        run: python -m nba.backtest --season "${{ inputs.season }}"
+      - name: Save results to the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898332+github-actions[bot]@users.noreply.github.com"
+          git add data reports
+          git commit -m "Backtest results for ${{ inputs.season }}" || echo "Nothing new to save"
+          git push
